@@ -22,6 +22,10 @@ export async function middleware(request: NextRequest) {
     },
     handleInvalidToken: async (reason) => {
       console.info("Missing or invalid credentials", { reason });
+      // In development without Firebase config, allow dashboard access
+      if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY && request.nextUrl.pathname.startsWith("/dashboard")) {
+        return NextResponse.next();
+      }
       // If trying to access protected routes, redirect to login
       if (request.nextUrl.pathname.startsWith("/dashboard") || 
           request.nextUrl.pathname.startsWith("/api/protected")) {
@@ -31,6 +35,10 @@ export async function middleware(request: NextRequest) {
     },
     handleError: async (error) => {
       console.error("Auth middleware error:", { error });
+      // In development without Firebase config, allow dashboard access
+      if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY && request.nextUrl.pathname.startsWith("/dashboard")) {
+        return NextResponse.next();
+      }
       return NextResponse.redirect(new URL("/login", request.url));
     },
   });

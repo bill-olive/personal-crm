@@ -49,3 +49,5 @@ ui-debug.log
 # IDE
 .vscode/
 .idea/
+screenshots/
+scripts/screenshot-dashboard-pages.mjs

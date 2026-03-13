@@ -72,7 +72,7 @@ export function PipelineChart() {
             borderRadius: "var(--radius)",
           }}
           labelStyle={{ color: "hsl(var(--foreground))" }}
-          formatter={(value: number) => [formatCurrency(value), "Value"]}
+          formatter={(value) => [formatCurrency(Number(value)), "Value"]}
           labelFormatter={(label) => label}
         />
         <Bar

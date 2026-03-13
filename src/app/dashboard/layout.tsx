@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { CommandSearch } from "@/components/layout/command-search";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 export default function DashboardLayout({
@@ -32,6 +33,7 @@ export default function DashboardLayout({
       {/* Content area */}
       <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
         <Header onMenuClick={() => setMobileOpen(true)} />
+        <CommandSearch />
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetContent
             side="left"

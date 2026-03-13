@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import {
   DEAL_STAGES,
   type DealStage,
-  type Deal,
 } from "@/lib/db/schemas";
 
 const DEAL_STAGE_ORDER: DealStage[] = [
@@ -42,7 +41,24 @@ const ACCOUNT_NAMES: Record<string, string> = {
   "8": "Molina Healthcare",
 };
 
-const SAMPLE_DEALS: (Deal & { accountName?: string })[] = [
+interface DealItem {
+  id: string;
+  title: string;
+  accountId: string;
+  contactIds: string[];
+  stage: DealStage;
+  value: number;
+  currency: string;
+  probability: number;
+  products: string[];
+  ownerId: string;
+  tags: string[];
+  accountName?: string;
+  expectedCloseDate?: string | null;
+  notes?: string;
+}
+
+const SAMPLE_DEALS = [
   {
     id: "1",
     title: "FHIR API Platform - CVS Health",
@@ -55,8 +71,6 @@ const SAMPLE_DEALS: (Deal & { accountName?: string })[] = [
     products: ["FHIR API Platform", "Electronic Prior Authorization"],
     ownerId: "user-1",
     tags: [],
-    createdAt: {} as never,
-    updatedAt: {} as never,
   },
   {
     id: "2",
@@ -73,8 +87,6 @@ const SAMPLE_DEALS: (Deal & { accountName?: string })[] = [
     ],
     ownerId: "user-1",
     tags: [],
-    createdAt: {} as never,
-    updatedAt: {} as never,
   },
   {
     id: "3",
@@ -88,8 +100,6 @@ const SAMPLE_DEALS: (Deal & { accountName?: string })[] = [
     products: ["Provider Access API", "Provider Directory"],
     ownerId: "user-1",
     tags: [],
-    createdAt: {} as never,
-    updatedAt: {} as never,
   },
   {
     id: "4",
@@ -103,8 +113,6 @@ const SAMPLE_DEALS: (Deal & { accountName?: string })[] = [
     products: ["Patient Access Portal", "Electronic Prior Authorization"],
     ownerId: "user-1",
     tags: [],
-    createdAt: {} as never,
-    updatedAt: {} as never,
   },
   {
     id: "5",
@@ -118,8 +126,6 @@ const SAMPLE_DEALS: (Deal & { accountName?: string })[] = [
     products: ["Analytics & Reporting", "FHIR API Platform"],
     ownerId: "user-1",
     tags: [],
-    createdAt: {} as never,
-    updatedAt: {} as never,
   },
   {
     id: "6",
@@ -133,8 +139,6 @@ const SAMPLE_DEALS: (Deal & { accountName?: string })[] = [
     products: ["Formulary Management", "Payer-to-Payer Data Exchange"],
     ownerId: "user-1",
     tags: [],
-    createdAt: {} as never,
-    updatedAt: {} as never,
   },
   {
     id: "7",
@@ -148,8 +152,6 @@ const SAMPLE_DEALS: (Deal & { accountName?: string })[] = [
     products: ["Provider Directory"],
     ownerId: "user-1",
     tags: [],
-    createdAt: {} as never,
-    updatedAt: {} as never,
   },
   {
     id: "8",
@@ -163,12 +165,12 @@ const SAMPLE_DEALS: (Deal & { accountName?: string })[] = [
     products: ["Analytics & Reporting", "Provider Access API"],
     ownerId: "user-1",
     tags: [],
-    createdAt: {} as never,
-    updatedAt: {} as never,
   },
-].map((d) => ({ ...d, accountName: ACCOUNT_NAMES[d.accountId] }));
+] satisfies DealItem[];
 
-const columns: ColumnDef<Deal & { accountName?: string }>[] = [
+const SAMPLE_DEALS_WITH_NAMES = SAMPLE_DEALS.map((d) => ({ ...d, accountName: ACCOUNT_NAMES[d.accountId] }));
+
+const columns: ColumnDef<DealItem>[] = [
   {
     accessorKey: "title",
     header: "Title",
@@ -227,17 +229,9 @@ const columns: ColumnDef<Deal & { accountName?: string }>[] = [
     cell: ({ row }) => {
       const val = row.original.expectedCloseDate;
       if (!val) return <span className="text-muted-foreground">—</span>;
-      const date =
-        typeof val === "object" &&
-        "toDate" in val &&
-        typeof (val as { toDate: () => Date }).toDate === "function"
-          ? (val as { toDate: () => Date }).toDate()
-          : val instanceof Date
-            ? val
-            : null;
       return (
         <span className="text-muted-foreground">
-          {date ? date.toLocaleDateString() : "—"}
+          {new Date(val).toLocaleDateString()}
         </span>
       );
     },
@@ -267,7 +261,7 @@ const columns: ColumnDef<Deal & { accountName?: string }>[] = [
   },
 ];
 
-function KanbanBoard({ deals }: { deals: (Deal & { accountName?: string })[] }) {
+function KanbanBoard({ deals }: { deals: DealItem[] }) {
   return (
     <div className="flex gap-4 overflow-x-auto pb-4">
       {DEAL_STAGE_ORDER.map((stage) => {
@@ -361,13 +355,13 @@ export default function DealsPage() {
         </div>
       </PageHeader>
 
-      {SAMPLE_DEALS.length > 0 ? (
+      {SAMPLE_DEALS_WITH_NAMES.length > 0 ? (
         view === "board" ? (
-          <KanbanBoard deals={SAMPLE_DEALS} />
+          <KanbanBoard deals={SAMPLE_DEALS_WITH_NAMES} />
         ) : (
           <DataTable
             columns={columns}
-            data={SAMPLE_DEALS}
+            data={SAMPLE_DEALS_WITH_NAMES}
             searchKey="title"
             searchPlaceholder="Search by title..."
           />

@@ -22,6 +22,7 @@ import {
   Zap,
   Activity,
 } from "lucide-react";
+import { PipelineChart } from "@/components/charts/pipeline-chart";
 
 const kpiCards = [
   {
@@ -141,8 +142,8 @@ const activeAgents = [
 const quickActions = [
   { label: "New Account", icon: Plus, href: "/dashboard/accounts/new" },
   { label: "Create Agent", icon: Bot, href: "/dashboard/agents/new" },
-  { label: "Schedule Meeting", icon: Calendar, href: "/dashboard/meetings/new" },
-  { label: "View Pipeline", icon: ArrowRight, href: "/dashboard/pipeline" },
+  { label: "Log Activity", icon: Calendar, href: "/dashboard/activities" },
+  { label: "View Pipeline", icon: ArrowRight, href: "/dashboard/deals" },
 ];
 
 export default function DashboardPage() {
@@ -195,12 +196,8 @@ export default function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Chart placeholder */}
-              <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 bg-muted/30">
-                <span className="text-sm text-muted-foreground">
-                  Chart placeholder
-                </span>
-              </div>
+              {/* Pipeline Chart */}
+              <PipelineChart />
 
               {/* Deals table */}
               <div className="space-y-3">

@@ -317,15 +317,12 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
         {quickActions.map((action) => (
-          <Button key={action.label} variant="outline" asChild>
-            <Link
-              href={action.href}
-              className="flex items-center gap-2 shadow-sm"
-            >
+          <Link key={action.label} href={action.href}>
+            <Button variant="outline" className="gap-2 shadow-sm">
               <action.icon className="size-4" />
               {action.label}
-            </Link>
-          </Button>
+            </Button>
+          </Link>
         ))}
       </div>
     </div>

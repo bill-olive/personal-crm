@@ -124,17 +124,21 @@ export async function executeAgent(orgId: string, runId: string): Promise<void> 
 
       if (choice.finish_reason === "tool_calls" && choice.message.tool_calls?.length) {
         for (const toolCall of choice.message.tool_calls) {
+          // Only handle function-type tool calls
+          const tc = toolCall as { id: string; type: string; function?: { name: string; arguments: string } };
+          if (!tc.function) continue;
+
           const stepStart = Date.now();
           let result: unknown;
           try {
             const args =
-              typeof toolCall.function.arguments === "string"
-                ? JSON.parse(toolCall.function.arguments)
-                : toolCall.function.arguments;
+              typeof tc.function.arguments === "string"
+                ? JSON.parse(tc.function.arguments)
+                : tc.function.arguments;
             result = await executeTool(
               db,
               orgId,
-              toolCall.function.name,
+              tc.function.name,
               args,
               config.integrations,
               ownerId
@@ -147,8 +151,8 @@ export async function executeAgent(orgId: string, runId: string): Promise<void> 
           const durationMs = Date.now() - stepStart;
           steps.push({
             id: `step-${steps.length}`,
-            toolName: toolCall.function.name,
-            input: toolCall.function.arguments,
+            toolName: tc.function.name,
+            input: tc.function.arguments,
             output: JSON.stringify(result),
             status: (result as { error?: string }).error ? "failed" : "completed",
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
@@ -163,7 +167,7 @@ export async function executeAgent(orgId: string, runId: string): Promise<void> 
           messages.push(choice.message);
           messages.push({
             role: "tool",
-            tool_call_id: toolCall.id,
+            tool_call_id: tc.id,
             content: JSON.stringify(result),
           });
         }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -8,111 +8,121 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Switch } from "@/components/ui/switch";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { toast } from "sonner";
 import {
   Send,
   User,
-  ChevronDown,
-  CheckCircle,
   ArrowLeft,
+  Loader2,
+  Bot,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-const SAMPLE_AGENT = {
-  id: "1",
-  name: "CVS Account Research Agent",
-  icon: "🔍",
-  status: "active" as const,
-};
-
-const SAMPLE_MESSAGES = [
-  {
-    id: "m1",
-    role: "user" as const,
-    content: "Research CVS Health's current FHIR implementation status",
-    timestamp: "10:32 AM",
-  },
-  {
-    id: "m2",
-    role: "assistant" as const,
-    content:
-      "I'll research CVS Health's FHIR implementation. Let me start by checking recent news and their technology announcements...",
-    steps: [
-      { name: "Web Search", query: "CVS Health FHIR API", status: "completed" },
-      { name: "Browse", url: "cvs.com/technology", status: "completed" },
-      { name: "CRM Read", action: "Account data", status: "completed" },
-    ],
-    timestamp: "10:32 AM",
-  },
-  {
-    id: "m3",
-    role: "assistant" as const,
-    content: `## CVS Health FHIR Implementation Research
-
-### Executive Summary
-CVS Health has been actively investing in FHIR-based interoperability as part of their digital health transformation. Their Aetna subsidiary and CVS Pharmacy operations are both pursuing API-first strategies to support CMS-9115-F and CMS-0057-F compliance.
-
-### Current Implementation Status
-
-**Aetna (Payer Operations)**
-- **Member Access API**: Launched in 2024 for commercial and Medicare members. Supports Patient Access and Provider Access APIs per CMS mandates.
-- **Prior Authorization**: Pilot program with FHIR-based prior auth submission. Expected full rollout Q2 2025.
-- **Payer-to-Payer**: Data exchange infrastructure in development for member data portability.
-
-**CVS Pharmacy & HealthHUB**
-- **Medication History**: FHIR R4 MedicationRequest/MedicationStatement integration with major EHRs.
-- **CarePass Integration**: Patient-facing health data access via FHIR-compliant APIs.
-
-### Technology Stack
-- **FHIR Version**: R4 (4.0.1)
-- **Primary Vendors**: Custom build with Epic integration; evaluating Redox and Health Gorilla for specific use cases
-- **Cloud**: AWS (primary), Azure for some Aetna workloads
-
-### Key Stakeholders
-- **CTO**: Norman DeLuca — driving API strategy
-- **VP Interoperability**: Sarah Chen — CMS compliance lead
-- **Chief Medical Officer**: Dr. Troyen Brennan — clinical data standards
-
-### Opportunity Assessment
-1stUp Health's FHIR API Platform would be highly relevant for:
-- Accelerating Aetna's payer-to-payer data exchange timeline
-- Replacing custom prior auth integrations with standardized FHIR workflows
-- Consolidating multiple vendor relationships into a single interoperability platform`,
-    timestamp: "10:35 AM",
-  },
-  {
-    id: "m4",
-    role: "user" as const,
-    content: "Create a meeting brief for our call with their CTO next Tuesday",
-    timestamp: "10:38 AM",
-  },
-  {
-    id: "m5",
-    role: "assistant" as const,
-    content: "I'll prepare a meeting brief for your call with Norman DeLuca (CTO)...",
-    steps: [
-      { name: "CRM Read", action: "Past meetings with CVS", status: "completed" },
-      { name: "Calendar", action: "Check availability", status: "completed" },
-      { name: "Drive Search", action: "Recent proposals", status: "completed" },
-    ],
-    timestamp: "10:38 AM",
-  },
-];
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  loading?: boolean;
+}
 
 export default function AgentChatPage() {
   const params = useParams();
   const id = params.id as string;
   const [input, setInput] = useState("");
-  const [runInBackground, setRunInBackground] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content: "Hello! I'm your AI agent for 1stUp Health. I can help with account research, meeting prep, competitive analysis, and more.\n\nWhat would you like me to help with?",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    },
+  ]);
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
+
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: text,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    const loadingMsg: ChatMessage = {
+      id: `loading-${Date.now()}`,
+      role: "assistant",
+      content: "",
+      timestamp: "",
+      loading: true,
+    };
+
+    setMessages((prev) => [...prev, userMsg, loadingMsg]);
+    setInput("");
+    setSending(true);
+
+    try {
+      // Build conversation history for the API
+      const history = [...messages, userMsg]
+        .filter((m) => !m.loading && m.id !== "welcome")
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      const res = await fetch("/api/agents/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId: id,
+          messages: history,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Remove loading message and show error
+        setMessages((prev) => prev.filter((m) => !m.loading));
+        toast.error(data.error || "Failed to get response");
+        return;
+      }
+
+      // Replace loading message with real response
+      const assistantMsg: ChatMessage = {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        content: data.content,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+
+      setMessages((prev) => prev.map((m) => (m.loading ? assistantMsg : m)));
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => !m.loading));
+      toast.error("Failed to send message: " + String(err));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col">
+      {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-3">
           <Link href={`/dashboard/agents/${id}`}>
@@ -122,28 +132,26 @@ export default function AgentChatPage() {
           </Link>
           <div className="flex items-center gap-2">
             <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-lg">
-              {SAMPLE_AGENT.icon}
+              🔍
             </span>
             <div>
-              <h1 className="font-semibold">{SAMPLE_AGENT.name}</h1>
+              <h1 className="font-semibold">AI Agent Chat</h1>
               <Badge
                 variant="outline"
-                className={
-                  SAMPLE_AGENT.status === "active"
-                    ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 text-xs dark:text-emerald-400"
-                    : "border-amber-500/50 bg-amber-500/10 text-amber-700 text-xs dark:text-amber-400"
-                }
+                className="border-emerald-500/50 bg-emerald-500/10 text-emerald-700 text-xs dark:text-emerald-400"
               >
-                {SAMPLE_AGENT.status}
+                <span className="mr-1 inline-block size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live
               </Badge>
             </div>
           </div>
         </div>
       </div>
 
-      <ScrollArea className="flex-1 p-4">
+      {/* Messages */}
+      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="mx-auto max-w-3xl space-y-6">
-          {SAMPLE_MESSAGES.map((msg) => (
+          {messages.map((msg) => (
             <div
               key={msg.id}
               className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
@@ -153,49 +161,34 @@ export default function AgentChatPage() {
                   {msg.role === "user" ? (
                     <User className="size-4" />
                   ) : (
-                    <span>{SAMPLE_AGENT.icon}</span>
+                    <Bot className="size-4" />
                   )}
                 </AvatarFallback>
               </Avatar>
               <div
                 className={`flex flex-1 flex-col gap-1 ${msg.role === "user" ? "items-end" : ""}`}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {msg.role === "user" ? "You" : "Agent"}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{msg.timestamp}</span>
-                </div>
+                {!msg.loading && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {msg.role === "user" ? "You" : "Agent"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{msg.timestamp}</span>
+                  </div>
+                )}
                 <div
                   className={`rounded-lg border px-4 py-3 ${
                     msg.role === "user"
-                      ? "bg-primary/10 text-primary-foreground"
+                      ? "bg-primary text-primary-foreground"
                       : "bg-muted/50"
                   }`}
                 >
-                  {msg.role === "assistant" && "steps" in msg && msg.steps ? (
-                    <>
-                      <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-                      <Collapsible className="mt-3">
-                        <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground">
-                          Steps
-                          <ChevronDown className="size-4" />
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <ul className="mt-2 space-y-1.5 pl-4">
-                            {msg.steps.map((step, i) => (
-                              <li key={i} className="flex items-center gap-2 text-xs">
-                                <CheckCircle className="size-3.5 text-emerald-500" />
-                                <span>
-                                  {step.name}: {step.query || step.url || step.action}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    </>
-                  ) : msg.role === "assistant" && msg.content.includes("##") ? (
+                  {msg.loading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="size-4 animate-spin" />
+                      Thinking...
+                    </div>
+                  ) : msg.role === "assistant" && (msg.content.includes("##") || msg.content.includes("**")) ? (
                     <div className="prose prose-sm dark:prose-invert max-w-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {msg.content}
@@ -211,24 +204,30 @@ export default function AgentChatPage() {
         </div>
       </ScrollArea>
 
+      {/* Input */}
       <div className="border-t p-4">
         <div className="mx-auto flex max-w-3xl gap-2">
           <Textarea
-            placeholder="Message the agent..."
+            placeholder="Ask the agent anything... (Enter to send, Shift+Enter for new line)"
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="min-h-[44px] resize-none"
             rows={1}
+            disabled={sending}
           />
-          <div className="flex flex-col gap-2">
-            <Button size="icon" className="h-11 w-11 shrink-0">
+          <Button
+            size="icon"
+            className="h-11 w-11 shrink-0"
+            onClick={handleSend}
+            disabled={sending || !input.trim()}
+          >
+            {sending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
               <Send className="size-4" />
-            </Button>
-            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-              <Switch checked={runInBackground} onCheckedChange={setRunInBackground} />
-              Run in Background
-            </label>
-          </div>
+            )}
+          </Button>
         </div>
       </div>
     </div>

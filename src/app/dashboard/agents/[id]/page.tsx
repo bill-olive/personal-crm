@@ -1,7 +1,9 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -83,8 +85,40 @@ function RunStatusIcon({ status }: { status: string }) {
 
 export default function AgentDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
   const agent = SAMPLE_AGENT;
+  const [running, setRunning] = useState(false);
+
+  const handleRunNow = async () => {
+    setRunning(true);
+    try {
+      const res = await fetch("/api/agents/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId: id,
+          input: `Run the ${agent.name} agent. Perform your default task and provide a comprehensive summary of findings.`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Agent run failed");
+        return;
+      }
+      toast.success("Agent run completed!", {
+        description: "View the full results in the run detail page.",
+        action: {
+          label: "View Run",
+          onClick: () => router.push(`/dashboard/agents/${id}/runs/${data.runId}`),
+        },
+      });
+    } catch (err) {
+      toast.error("Failed to run agent: " + String(err));
+    } finally {
+      setRunning(false);
+    }
+  };
 
   const integrationLabels: Record<string, string> = {
     email: "Email",
@@ -129,9 +163,17 @@ export default function AgentDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-            <Play className="size-4" />
-            Run Now
+          <Button
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+            onClick={handleRunNow}
+            disabled={running}
+          >
+            {running ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Play className="size-4" />
+            )}
+            {running ? "Running..." : "Run Now"}
           </Button>
           <Link href={`/dashboard/agents/${id}/edit`}>
             <Button variant="outline" className="gap-2">

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
@@ -156,10 +158,7 @@ export default function AgentsPage() {
                         <ArrowRight className="size-3.5" />
                       </Button>
                     </Link>
-                    <Button size="sm" className="gap-1.5">
-                      <Play className="size-3.5" />
-                      Run Now
-                    </Button>
+                    <RunNowButton agentId={agent.id} agentName={agent.name} />
                   </div>
                 </CardContent>
               </Card>
@@ -215,5 +214,40 @@ export default function AgentsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function RunNowButton({ agentId, agentName }: { agentId: string; agentName: string }) {
+  const [running, setRunning] = useState(false);
+
+  const handleRun = async () => {
+    setRunning(true);
+    try {
+      const res = await fetch("/api/agents/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId,
+          input: `Run the ${agentName} agent. Perform your default task and provide a comprehensive summary.`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Agent run failed");
+        return;
+      }
+      toast.success(`${agentName} completed!`);
+    } catch (err) {
+      toast.error("Run failed: " + String(err));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Button size="sm" className="gap-1.5" onClick={handleRun} disabled={running}>
+      {running ? <Zap className="size-3.5 animate-pulse" /> : <Play className="size-3.5" />}
+      {running ? "Running..." : "Run Now"}
+    </Button>
   );
 }

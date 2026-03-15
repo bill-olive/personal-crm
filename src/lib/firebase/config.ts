@@ -7,6 +7,28 @@ export const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
+// Handle FIREBASE_PRIVATE_KEY which may be:
+// 1. Raw key with actual newlines
+// 2. JSON-escaped with \\n literals
+// 3. Base64-encoded (for Vercel compatibility)
+function getPrivateKey(): string {
+  const raw = process.env.FIREBASE_PRIVATE_KEY || "";
+  if (!raw) return "";
+
+  // Try base64 decode first (if user base64-encoded the key for Vercel)
+  if (!raw.includes("BEGIN") && !raw.includes("\\n") && raw.length > 100) {
+    try {
+      const decoded = Buffer.from(raw, "base64").toString("utf-8");
+      if (decoded.includes("BEGIN")) return decoded;
+    } catch {
+      // Not base64, continue
+    }
+  }
+
+  // Replace escaped newlines (JSON-style \\n) with actual newlines
+  return raw.replace(/\\n/g, "\n");
+}
+
 export const authConfig = {
   cookieName: process.env.AUTH_COOKIE_NAME || "__session",
   cookieSignatureKeys: (
@@ -22,6 +44,6 @@ export const authConfig = {
   serviceAccount: {
     projectId: process.env.FIREBASE_PROJECT_ID!,
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
-    privateKey: (process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+    privateKey: getPrivateKey(),
   },
 };

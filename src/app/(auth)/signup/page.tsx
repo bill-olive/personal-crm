@@ -10,6 +10,7 @@ import {
   signInWithPopup,
 } from "firebase/auth";
 import { getClientAuth, getClientDb } from "@/lib/firebase/client";
+import { useAuth } from "@/lib/auth/context";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ import { Loader2, Heart, Chrome } from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
+  const { syncSession } = useAuth();
   const [fullName, setFullName] = useState("");
   const [orgName, setOrgName] = useState("1stUp Health");
   const [email, setEmail] = useState("");
@@ -40,8 +42,9 @@ export default function SignupPage() {
     displayName: string,
     orgName: string
   ) => {
-    // Create organization
     const fireDb = getClientDb();
+
+    // Create organization
     const orgRef = doc(fireDb, "organizations", uid + "_org");
     await setDoc(orgRef, {
       name: orgName,
@@ -80,11 +83,36 @@ export default function SignupPage() {
       const fireAuth = getClientAuth();
       const credential = await createUserWithEmailAndPassword(fireAuth, email, password);
       await updateProfile(credential.user, { displayName: fullName });
-      await createUserProfile(credential.user.uid, email, fullName, orgName);
+
+      // Create Firestore profile (may fail if Firestore rules haven't been deployed yet — that's OK)
+      try {
+        await createUserProfile(credential.user.uid, email, fullName, orgName);
+      } catch (profileErr) {
+        console.warn("Profile creation failed (Firestore may not be configured):", profileErr);
+      }
+
+      // Sync session cookie BEFORE navigating
+      const idToken = await credential.user.getIdToken();
+      const synced = await syncSession(idToken);
+      if (!synced) {
+        console.warn("Cookie sync failed, navigating anyway");
+      }
+
       toast.success("Account created! Welcome to 1stUp Health CRM.");
       router.push("/dashboard");
+      router.refresh();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Signup failed";
+      const firebaseError = error as { code?: string; message?: string };
+      let message = "Signup failed";
+      if (firebaseError.code === "auth/email-already-in-use") {
+        message = "An account with this email already exists. Please sign in instead.";
+      } else if (firebaseError.code === "auth/weak-password") {
+        message = "Password must be at least 6 characters.";
+      } else if (firebaseError.code === "auth/invalid-email") {
+        message = "Please enter a valid email address.";
+      } else if (firebaseError.message) {
+        message = firebaseError.message;
+      }
       toast.error(message);
     } finally {
       setLoading(false);
@@ -98,16 +126,35 @@ export default function SignupPage() {
       const fireAuth = getClientAuth();
       const credential = await signInWithPopup(fireAuth, provider);
       const user = credential.user;
-      await createUserProfile(
-        user.uid,
-        user.email || "",
-        user.displayName || "User",
-        orgName
-      );
+
+      // Create Firestore profile
+      try {
+        await createUserProfile(
+          user.uid,
+          user.email || "",
+          user.displayName || "User",
+          orgName
+        );
+      } catch (profileErr) {
+        console.warn("Profile creation failed (Firestore may not be configured):", profileErr);
+      }
+
+      // Sync session cookie BEFORE navigating
+      const idToken = await user.getIdToken();
+      const synced = await syncSession(idToken);
+      if (!synced) {
+        console.warn("Cookie sync failed, navigating anyway");
+      }
+
       toast.success("Account created! Welcome to 1stUp Health CRM.");
       router.push("/dashboard");
+      router.refresh();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Google signup failed";
+      const firebaseError = error as { code?: string; message?: string };
+      if (firebaseError.code === "auth/popup-closed-by-user") {
+        return;
+      }
+      const message = firebaseError.message || "Google signup failed";
       toast.error(message);
     } finally {
       setLoading(false);

@@ -9,6 +9,7 @@ import {
   signInWithPopup,
 } from "firebase/auth";
 import { getClientAuth } from "@/lib/firebase/client";
+import { useAuth } from "@/lib/auth/context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +27,7 @@ import { Loader2, Heart, Chrome } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { syncSession } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,11 +36,31 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(getClientAuth(), email, password);
+      const credential = await signInWithEmailAndPassword(getClientAuth(), email, password);
+      const idToken = await credential.user.getIdToken();
+
+      // Sync session cookie BEFORE navigating
+      const synced = await syncSession(idToken);
+      if (!synced) {
+        console.warn("Cookie sync failed, navigating anyway");
+      }
+
       toast.success("Welcome back!");
       router.push("/dashboard");
+      // Force a hard reload to pick up the new cookie state
+      router.refresh();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Login failed";
+      const firebaseError = error as { code?: string; message?: string };
+      let message = "Login failed";
+      if (firebaseError.code === "auth/user-not-found") {
+        message = "No account found with this email. Please sign up first.";
+      } else if (firebaseError.code === "auth/wrong-password" || firebaseError.code === "auth/invalid-credential") {
+        message = "Invalid email or password.";
+      } else if (firebaseError.code === "auth/too-many-requests") {
+        message = "Too many failed attempts. Please try again later.";
+      } else if (firebaseError.message) {
+        message = firebaseError.message;
+      }
       toast.error(message);
     } finally {
       setLoading(false);
@@ -49,13 +71,25 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      provider.addScope("https://www.googleapis.com/auth/gmail.readonly");
-      provider.addScope("https://www.googleapis.com/auth/drive.readonly");
-      await signInWithPopup(getClientAuth(), provider);
+      const credential = await signInWithPopup(getClientAuth(), provider);
+      const idToken = await credential.user.getIdToken();
+
+      // Sync session cookie BEFORE navigating
+      const synced = await syncSession(idToken);
+      if (!synced) {
+        console.warn("Cookie sync failed, navigating anyway");
+      }
+
       toast.success("Welcome!");
       router.push("/dashboard");
+      router.refresh();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Google login failed";
+      const firebaseError = error as { code?: string; message?: string };
+      if (firebaseError.code === "auth/popup-closed-by-user") {
+        // User closed the popup, don't show error
+        return;
+      }
+      const message = firebaseError.message || "Google login failed";
       toast.error(message);
     } finally {
       setLoading(false);

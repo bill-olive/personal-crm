@@ -4,8 +4,13 @@ const PUBLIC_PATHS = ["/", "/login", "/signup"];
 
 // Parse the private key from env — handle all Vercel formatting edge cases
 function getPrivateKey(): string {
-  const raw = process.env.FIREBASE_ADMIN || process.env.FIREBASE_PRIVATE_KEY || "";
+  let raw = process.env.FIREBASE_ADMIN || process.env.FIREBASE_PRIVATE_KEY || "";
   if (!raw) return "";
+
+  // Strip surrounding quotes (common when pasting JSON values into Vercel env vars)
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    raw = raw.slice(1, -1);
+  }
 
   // If it's already a proper PEM key with real newlines
   if (raw.includes("-----BEGIN") && raw.includes("\n")) {

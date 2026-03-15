@@ -13,8 +13,12 @@ import { getStorage, Storage } from "firebase-admin/storage";
 
 function getPrivateKey(): string {
   // Support both FIREBASE_ADMIN and FIREBASE_PRIVATE_KEY naming
-  const raw = process.env.FIREBASE_ADMIN || process.env.FIREBASE_PRIVATE_KEY || "";
+  let raw = process.env.FIREBASE_ADMIN || process.env.FIREBASE_PRIVATE_KEY || "";
   if (!raw) return "";
+  // Strip surrounding quotes (common Vercel paste issue)
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    raw = raw.slice(1, -1);
+  }
 
   // Try base64 decode
   if (!raw.includes("BEGIN") && !raw.includes("\\n") && raw.length > 100) {

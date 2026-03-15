@@ -5,8 +5,12 @@ import { getTokens } from "next-firebase-auth-edge";
 
 // Replicate auth config inline to avoid circular dependency with middleware
 function getPrivateKey(): string {
-  const raw = process.env.FIREBASE_ADMIN || process.env.FIREBASE_PRIVATE_KEY || "";
+  let raw = process.env.FIREBASE_ADMIN || process.env.FIREBASE_PRIVATE_KEY || "";
   if (!raw) return "";
+  // Strip surrounding quotes (common Vercel paste issue)
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    raw = raw.slice(1, -1);
+  }
   if (raw.includes("-----BEGIN") && raw.includes("\n")) return raw;
   if (raw.includes("\\n")) return raw.replace(/\\n/g, "\n");
   if (!raw.includes("BEGIN") && raw.length > 100) {

@@ -11,18 +11,35 @@ import { getAuth, Auth } from "firebase-admin/auth";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getStorage, Storage } from "firebase-admin/storage";
 
+function getPrivateKey(): string {
+  // Support both FIREBASE_ADMIN and FIREBASE_PRIVATE_KEY naming
+  const raw = process.env.FIREBASE_ADMIN || process.env.FIREBASE_PRIVATE_KEY || "";
+  if (!raw) return "";
+
+  // Try base64 decode
+  if (!raw.includes("BEGIN") && !raw.includes("\\n") && raw.length > 100) {
+    try {
+      const decoded = Buffer.from(raw, "base64").toString("utf-8");
+      if (decoded.includes("BEGIN")) return decoded;
+    } catch {
+      // Not base64
+    }
+  }
+
+  return raw.replace(/\\n/g, "\n");
+}
+
 function getAdminApp(): App {
   if (getApps().length > 0) return getApp();
 
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = (process.env.FIREBASE_PRIVATE_KEY || "").replace(
-    /\\n/g,
-    "\n"
-  );
+  // Support both FIREBASE_ADMIN_* and FIREBASE_* naming conventions
+  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = getPrivateKey();
 
-  if (!projectId || !clientEmail || !privateKey) {
-    return initializeApp({ projectId: "demo-project" });
+  if (!projectId || !clientEmail || !privateKey || !privateKey.includes("BEGIN")) {
+    console.warn("Firebase Admin SDK: Missing or incomplete service account credentials. Using demo project.");
+    return initializeApp({ projectId: projectId || "demo-project" });
   }
 
   return initializeApp({
@@ -56,5 +73,4 @@ export function getAdminStorage(): Storage {
   return _storage;
 }
 
-// Convenience re-exports for direct use
 export { type Auth, type Firestore, type Storage };

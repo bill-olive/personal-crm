@@ -7,12 +7,13 @@ export const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-// Handle FIREBASE_PRIVATE_KEY which may be:
+// Handle FIREBASE_ADMIN (private key) which may be:
 // 1. Raw key with actual newlines
 // 2. JSON-escaped with \\n literals
 // 3. Base64-encoded (for Vercel compatibility)
 function getPrivateKey(): string {
-  const raw = process.env.FIREBASE_PRIVATE_KEY || "";
+  // Support both FIREBASE_ADMIN and FIREBASE_PRIVATE_KEY naming
+  const raw = process.env.FIREBASE_ADMIN || process.env.FIREBASE_PRIVATE_KEY || "";
   if (!raw) return "";
 
   // Try base64 decode first (if user base64-encoded the key for Vercel)
@@ -42,8 +43,8 @@ export const authConfig = {
     maxAge: 12 * 60 * 60 * 24, // 12 days
   },
   serviceAccount: {
-    projectId: process.env.FIREBASE_PROJECT_ID!,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
+    projectId: process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.FIREBASE_PROJECT_ID!,
+    clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL!,
     privateKey: getPrivateKey(),
   },
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import {
   onIdTokenChanged,
   signOut as firebaseSignOut,
@@ -32,18 +32,18 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  // Track whether we've explicitly triggered a login (vs. background token refresh)
+  const manualLoginRef = useRef(false);
 
-  // Sync the Firebase ID token to a server-side cookie via the middleware /api/login endpoint
   const syncSession = useCallback(async (idToken: string): Promise<boolean> => {
     try {
       const response = await fetch("/api/login", {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
+        headers: { Authorization: `Bearer ${idToken}` },
       });
       if (!response.ok) {
-        console.error("Session sync failed:", response.status, await response.text().catch(() => ""));
+        const text = await response.text().catch(() => "");
+        console.error("Session sync failed:", response.status, text);
         return false;
       }
       return true;
@@ -53,21 +53,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Mark that a manual login is happening (called from login/signup pages)
+  const markManualLogin = useCallback(() => {
+    manualLoginRef.current = true;
+  }, []);
+
   useEffect(() => {
     const firebaseAuth = getClientAuth();
     const unsubscribe = onIdTokenChanged(
       firebaseAuth,
       async (firebaseUser: FirebaseUser | null) => {
         if (firebaseUser) {
-          const idToken = await firebaseUser.getIdToken();
-          // Try to sync — don't block user state on cookie sync success
-          syncSession(idToken);
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
           });
+
+          // Only auto-sync cookies if this was triggered by a manual login action,
+          // NOT on initial page load from cached Firebase auth state.
+          // The login/signup pages will explicitly call syncSession themselves.
+          if (manualLoginRef.current) {
+            manualLoginRef.current = false;
+            const idToken = await firebaseUser.getIdToken();
+            syncSession(idToken);
+          }
         } else {
           setUser(null);
         }
@@ -76,16 +87,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [syncSession]);
+  }, [syncSession, markManualLogin]);
 
   const signOut = async () => {
     const firebaseAuth = getClientAuth();
     await firebaseSignOut(firebaseAuth);
-    // Clear server session cookie
     try {
       await fetch("/api/logout", { method: "GET" });
     } catch {
-      // Ignore logout fetch errors
+      // Ignore
     }
     setUser(null);
   };

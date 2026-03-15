@@ -1,21 +1,17 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getServerUser } from "@/lib/auth/server";
+import { ensureUserAndOrg } from "@/lib/auth/ensure-user";
 
 // GET — Check Google connection status
 export async function GET() {
   try {
-    const user = await getServerUser();
-    if (!user) {
+    const auth = await ensureUserAndOrg();
+    if (!auth) {
       return NextResponse.json({ connected: false, reason: "unauthorized" });
     }
 
+    const { orgId } = auth;
     const db = getAdminDb();
-    const userDoc = await db.doc(`users/${user.uid}`).get();
-    const orgId = userDoc.data()?.orgId;
-    if (!orgId) {
-      return NextResponse.json({ connected: false, reason: "no_org" });
-    }
 
     const tokenDoc = await db.doc(`organizations/${orgId}/integrationTokens/google`).get();
     if (!tokenDoc.exists) {

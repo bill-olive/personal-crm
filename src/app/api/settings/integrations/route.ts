@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getServerUser } from "@/lib/auth/server";
+import { ensureUserAndOrg } from "@/lib/auth/ensure-user";
 
 // GET — Read saved integration settings (API keys, model preferences)
 export async function GET() {
   try {
-    const user = await getServerUser();
-    if (!user) {
+    const auth = await ensureUserAndOrg();
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { orgId } = auth;
     const db = getAdminDb();
-
-    // Get user's org
-    const userDoc = await db.doc(`users/${user.uid}`).get();
-    const orgId = userDoc.data()?.orgId;
-    if (!orgId) {
-      return NextResponse.json({ error: "No organization found" }, { status: 404 });
-    }
 
     // Read settings
     const settingsDoc = await db.doc(`organizations/${orgId}/settings/apiKeys`).get();
@@ -60,19 +54,13 @@ export async function GET() {
 // POST — Save API keys and settings
 export async function POST(request: NextRequest) {
   try {
-    const user = await getServerUser();
-    if (!user) {
+    const auth = await ensureUserAndOrg();
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { orgId } = auth;
     const db = getAdminDb();
-
-    // Get user's org
-    const userDoc = await db.doc(`users/${user.uid}`).get();
-    const orgId = userDoc.data()?.orgId;
-    if (!orgId) {
-      return NextResponse.json({ error: "No organization found" }, { status: 404 });
-    }
 
     const body = await request.json();
     const updates: Record<string, string | null> = {};

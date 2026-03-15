@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getServerUser } from "@/lib/auth/server";
+import { ensureUserAndOrg } from "@/lib/auth/ensure-user";
 import { FieldValue } from "firebase-admin/firestore";
 
 // GET — Google OAuth callback (exchanges code for tokens, stores in Firestore)
@@ -22,12 +22,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const user = await getServerUser();
-    if (!user) {
+    const auth = await ensureUserAndOrg();
+    if (!auth) {
       return NextResponse.redirect(
         new URL("/login?error=unauthorized", request.url)
       );
     }
+
+    const { orgId } = auth;
 
     const clientId = process.env.GOOGLE_CLIENT_ID!;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET!;
@@ -42,15 +44,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user's org
     const db = getAdminDb();
-    const userDoc = await db.doc(`users/${user.uid}`).get();
-    const orgId = userDoc.data()?.orgId;
-    if (!orgId) {
-      return NextResponse.redirect(
-        new URL("/dashboard/settings/integrations?error=no_org", request.url)
-      );
-    }
 
     // Get user email from Google
     oauth2Client.setCredentials(tokens);
@@ -69,7 +63,7 @@ export async function GET(request: NextRequest) {
         name: userInfo.data.name || null,
         picture: userInfo.data.picture || null,
       },
-      connectedBy: user.uid,
+      connectedBy: auth.user.uid,
       connectedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });

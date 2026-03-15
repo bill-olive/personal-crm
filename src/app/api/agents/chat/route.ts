@@ -1,23 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getServerUser } from "@/lib/auth/server";
+import { ensureUserAndOrg } from "@/lib/auth/ensure-user";
 import OpenAI from "openai";
 
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getServerUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await ensureUserAndOrg();
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized — please log in" }, { status: 401 });
     }
 
+    const { orgId } = auth;
     const db = getAdminDb();
-    const userDoc = await db.doc(`users/${user.uid}`).get();
-    const orgId = userDoc.data()?.orgId;
-    if (!orgId) {
-      return NextResponse.json({ error: "No organization found" }, { status: 404 });
-    }
 
     const body = await request.json();
     const { agentId, messages } = body;

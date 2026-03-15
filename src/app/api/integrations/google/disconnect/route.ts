@@ -1,21 +1,17 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getServerUser } from "@/lib/auth/server";
+import { ensureUserAndOrg } from "@/lib/auth/ensure-user";
 
 // POST — Disconnect Google (delete tokens)
 export async function POST() {
   try {
-    const user = await getServerUser();
-    if (!user) {
+    const auth = await ensureUserAndOrg();
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { orgId } = auth;
     const db = getAdminDb();
-    const userDoc = await db.doc(`users/${user.uid}`).get();
-    const orgId = userDoc.data()?.orgId;
-    if (!orgId) {
-      return NextResponse.json({ error: "No organization found" }, { status: 404 });
-    }
 
     await db.doc(`organizations/${orgId}/integrationTokens/google`).delete();
 

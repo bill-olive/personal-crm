@@ -177,9 +177,6 @@ export const config = {
     "/login",
     "/signup",
     "/dashboard/:path*",
-    "/api/login",
-    "/api/logout",
-    "/api/auth-debug",
-    "/api/protected/:path*",
+    "/api/:path*",
   ],
 };
